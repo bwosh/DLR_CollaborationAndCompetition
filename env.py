@@ -4,6 +4,9 @@ class BaseEnvironment:
     def __init__(self, opts):
         self.opts = opts
 
+    def copy(self):
+        raise Exception("Not impmented")
+
     def reset(self):
         raise Exception("Not impmented")
 
@@ -30,6 +33,11 @@ class TicTacToe(BaseEnvironment):
         super().__init__(opts)
         self.reset()  
 
+    def copy(self):
+        cp = TicTacToe(self.opts)
+        cp.state = self.state.copy()
+        return cp
+
     def reset(self):
         self.state = np.zeros((9), dtype='float')
 
@@ -40,7 +48,7 @@ class TicTacToe(BaseEnvironment):
         return 9
 
     def is_done(self):
-        return np.sum(self.state==0)==0
+        return np.sum(self.state==0)==0 or self.get_reward(1)!=0
 
     def get_state(self):
         return self.state.copy()
@@ -70,7 +78,7 @@ class TicTacToe(BaseEnvironment):
             if all_equal:
                 if sample == player:
                     return 1.0
-                else:
+                elif sample == -player:
                     return -1.0
         return 0.0
 

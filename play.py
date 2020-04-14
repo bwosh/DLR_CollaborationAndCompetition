@@ -19,8 +19,7 @@ def play_episode(opts, env, agents):
     agent_index = 0
     while not env.is_done():
         agent = agents[agent_index]
-        state = env.get_state()
-        action = agent.act(state)
+        state, action = agent.act(env, agent_index)
         valid, reward, done, next_state = env.step(action)
 
         agent.step(state, action, reward, next_state, done)

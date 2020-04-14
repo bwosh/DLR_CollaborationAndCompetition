@@ -11,6 +11,7 @@ agent = Agent(opts, env.get_state_shape(), env.get_action_shape())
 agent_neg = AgentWrapper(agent, opts.second_actor_reward_factor)
 agents = [agent, agent_neg] 
 
+print("=========================")
 scores = play_episodes(opts, env, agents)
 
 if opts.make_plot:

@@ -12,5 +12,7 @@ class Opts:
         self.invalid_action_score = -10
         self.second_actor_reward_factor = -1
 
+        self.mcts_visits = 3
+
         # Summary
         self.make_plot = False
