@@ -14,6 +14,8 @@ class Agent():
         self.state_size = state_size
         self.action_size = action_size
         self.opts = opts
+        self.closs = np.inf
+        self.aloss = np.inf  
 
         # Actor Network 
         self.actor_local = ActorNet(state_size, action_size, 
@@ -36,14 +38,17 @@ class Agent():
         # Replay memory
         self.memory = ReplayBuffer(action_size, opts.buffer_size, opts.batch_size, opts.random_seed, opts.device)
 
-    def step(self, state, action, reward, next_state, done):
-        for i in range(self.num_agents):
+    def step(self, state, action, reward, next_state, done, warmup):
+        for i in range(self.num_agents): 
             self.memory.add(state[i,:], action[i,:], reward[i], next_state[i,:], done[i])
         
         self.step_idx += 1            
         is_learn_iteration = (self.step_idx % self.opts.learn_every ) == 0
         is_update_iteration = ( self.step_idx % self.opts.update_every ) == 0
         
+        if warmup:
+            return
+
         if len(self.memory) > self.opts.batch_size:
             if is_learn_iteration:
                 experiences = self.memory.sample()
@@ -53,15 +58,19 @@ class Agent():
                 soft_update(self.critic_local, self.critic_target, self.opts.tau) 
                 soft_update(self.actor_local, self.actor_target, self.opts.tau)
 
-    def act(self, state):
+    def act(self, state, warmup):
         state = torch.from_numpy(state).float().to(self.opts.device)
 
-        self.actor_local.eval()
-        with torch.no_grad():
-            action = self.actor_local(state).cpu().data.numpy()
-        self.actor_local.train()
+        if warmup:
+            action = self.noise.sample()
+        else:
+            self.actor_local.eval()
+            with torch.no_grad():
+                action = self.actor_local(state).cpu().data.numpy()
+            self.actor_local.train()
 
-        action += self.noise.sample()
+            action += self.noise.sample()
+        
         return np.clip(action, self.opts.minimum_action_value, self.opts.maximum_action_value)
 
     def save(self):       
@@ -91,6 +100,7 @@ class Agent():
         # Compute & minimize critic loss
         Q_expected = self.critic_local(states, actions)
         critic_loss = F.mse_loss(Q_expected, Q_targets)
+        closs = float(critic_loss)
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
         self.critic_optimizer.step()
@@ -100,6 +110,10 @@ class Agent():
 
         # Compute & minimize critic loss
         actor_loss = -self.critic_local(states, actions_pred).mean()
+        aloss = float(actor_loss)
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
-        self.actor_optimizer.step()                    
+        self.actor_optimizer.step() 
+
+        self.closs = closs
+        self.aloss = aloss                  

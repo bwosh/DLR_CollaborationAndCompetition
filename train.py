@@ -12,7 +12,7 @@ from utils.plot import save_plot_results
 opts = Opts()
 
 # Create environment
-env = UnityEnvironment(file_name='./Tennis.app')
+env = UnityEnvironment(file_name=opts.executable)
 brain_name = env.brain_names[0]
 brain = env.brains[brain_name]
 
@@ -23,50 +23,52 @@ num_agents = len(env_info.agents)
 action_size = brain.vector_action_space_size
 state_size = states.shape[1]
 
-agent = Agent(2, state_size, action_size, opts)
+agent = Agent(opts.num_agents, state_size, action_size, opts)
 
-def play(brain_name, agent, env, pbar):
+def play(brain_name, agent, env, pbar, warmup):
     # Reset environment and variables
     env_info = env.reset(train_mode=True)[brain_name]      
-    states = env_info.vector_observations                  
-    scores = np.zeros(num_agents)                          
+    states = env_info.vector_observations             
+    scores = np.zeros(num_agents)
+    move=0                          
 
     while True:
         # Act & get results
-        actions = agent.act(states)
+        actions = agent.act(states, warmup)
         env_info = env.step(actions)[brain_name] 
 
         # Gather data
         rewards = env_info.rewards                        
         dones = env_info.local_done                        
         scores += env_info.rewards                        
-        next_states = env_info.vector_observations 
+        next_states = env_info.vector_observations
 
         # Make agent step
-        agent.step(states, actions, rewards, next_states, dones)
+        agent.step(states, actions, rewards, next_states, dones, warmup)
         states = next_states 
 
         pbar.update()
+        move+=1
 
         if np.any(dones):
             break
-    return scores
+
+    return scores, move
 
 # Try to solve environment
 episode_scores = []
 pbar = tqdm(total=opts.episodes*opts.moves_per_episode)
 for episode in range(opts.episodes):
     # Display data
-    pbar.set_description(f"E{episode+1}/{opts.episodes}")
     e_start = time.time()
 
     # Play
-    scores = play(brain_name, agent, env, pbar)
+    scores, moves = play(brain_name, agent, env, pbar, episode<opts.warm_up_episodes)
 
     # Save scores
     avg_score = np.mean(scores)
     max_score = np.max(scores)
-    episode_scores.append(scores)
+    episode_scores.append(max_score)
 
     # Solve rule
     mean_target_score = np.mean(episode_scores[-opts.target_score_episodes:])
@@ -80,10 +82,11 @@ for episode in range(opts.episodes):
     # Display
     e_stop = time.time()
     seconds = e_stop-e_start
-    print(f"[Episode {episode}, Time(s): {seconds:.1f}] Score: {avg_score:.3f}, MeanOver{opts.target_score_episodes}: {mean_target_score:.3f}, Max={max_score:.3f}")
+    mean_10_score = np.mean(episode_scores[-10:])
+    pbar.set_description(f"E{episode+1}/{opts.episodes} M{opts.target_score_episodes}:{mean_target_score:.4f} M10:{mean_10_score:.4f} LOSS:{agent.aloss:.3f}/{agent.closs:.3f}")
 
 # Finish
 env.close()
 
 # Save training plot
-save_plot_results(opts.approach_title, np.mean(episode_scores, axis=1), opts.target_score_episodes, opts.target_avg_score)
+save_plot_results(opts.approach_title, episode_scores, opts.target_score_episodes, opts.target_avg_score)

@@ -1,12 +1,14 @@
 class Opts:
     def __init__(self):
         # Expetiment options
-        self.episodes = 200
-        self.target_avg_score = 30
+        self.executable = '../Tennis_Linux_NoVis/Tennis.x86_64'
+        self.episodes = 1000
+        self.target_avg_score = 0.5
         self.target_score_episodes = 100
         self.moves_per_episode = 1000
         self.minimum_action_value = -1
         self.maximum_action_value = 1
+        self.num_agents = 2
 
         # Neural network hidden layers configuration 
         self.a_fc1 = 128
@@ -15,7 +17,8 @@ class Opts:
         self.c_fc2 = 128
 
         # Agent training options
-        self.device = "cpu"
+        self.warm_up_episodes = 300
+        self.device = "cuda"
 
         self.buffer_size=int(1e5)
         self.batch_size=64
