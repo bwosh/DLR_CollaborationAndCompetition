@@ -25,7 +25,7 @@ state_size = states.shape[1]
 
 agent = Agent(opts.num_agents, state_size, action_size, opts)
 
-def play(brain_name, agent, env, pbar, warmup):
+def play(brain_name, agent, env, warmup):
     # Reset environment and variables
     env_info = env.reset(train_mode=True)[brain_name]      
     states = env_info.vector_observations             
@@ -47,7 +47,6 @@ def play(brain_name, agent, env, pbar, warmup):
         agent.step(states, actions, rewards, next_states, dones, warmup)
         states = next_states 
 
-        pbar.update()
         move+=1
 
         if np.any(dones):
@@ -57,13 +56,14 @@ def play(brain_name, agent, env, pbar, warmup):
 
 # Try to solve environment
 episode_scores = []
-pbar = tqdm(total=opts.episodes*opts.moves_per_episode)
+pbar = tqdm(total=opts.episodes)
 for episode in range(opts.episodes):
     # Display data
     e_start = time.time()
+    is_warmup = episode<opts.warm_up_episodes
 
     # Play
-    scores, moves = play(brain_name, agent, env, pbar, episode<opts.warm_up_episodes)
+    scores, moves = play(brain_name, agent, env, is_warmup)
 
     # Save scores
     avg_score = np.mean(scores)
@@ -83,8 +83,11 @@ for episode in range(opts.episodes):
     e_stop = time.time()
     seconds = e_stop-e_start
     mean_10_score = np.mean(episode_scores[-10:])
-    pbar.set_description(f"E{episode+1}/{opts.episodes} M{opts.target_score_episodes}:{mean_target_score:.4f} M10:{mean_10_score:.4f} LOSS:{agent.aloss:.3f}/{agent.closs:.3f}")
+    pbar.set_description(f"E{episode+1}/{opts.episodes} M{opts.target_score_episodes}:{mean_target_score:.4f} M10:{mean_10_score:.4f} eps:{agent.eps:0.3f} LOSS:{agent.aloss:.3f}/{agent.closs:.3f}")
+    pbar.update()
 
+    if not is_warmup:
+        agent.finish_episode()
 # Finish
 env.close()
 

@@ -17,6 +17,10 @@ class Agent():
         self.closs = np.inf
         self.aloss = np.inf  
 
+        self.eps = 1
+        self.eps_decay = 0.998
+        self.min_eps = 0.01
+
         # Actor Network 
         self.actor_local = ActorNet(state_size, action_size, 
                             fc1_units=opts.a_fc1, fc2_units=opts.a_fc2).to(opts.device)
@@ -38,6 +42,11 @@ class Agent():
         # Replay memory
         self.memory = ReplayBuffer(action_size, opts.buffer_size, opts.batch_size, opts.random_seed, opts.device)
 
+    def finish_episode(self):
+        self.eps *= self.eps_decay
+        self.eps = max(self.eps, self.min_eps)
+        self.noise.reset()    
+
     def step(self, state, action, reward, next_state, done, warmup):
         for i in range(self.num_agents): 
             self.memory.add(state[i,:], action[i,:], reward[i], next_state[i,:], done[i])
@@ -51,25 +60,30 @@ class Agent():
 
         if len(self.memory) > self.opts.batch_size:
             if is_learn_iteration:
-                experiences = self.memory.sample()
-                self.learn(experiences, self.opts.gamma)
+                for _ in range(self.opts.learn_iterations): 
+                    experiences = self.memory.sample()
+                    self.learn(experiences, self.opts.gamma)
         
-            if is_update_iteration:
-                soft_update(self.critic_local, self.critic_target, self.opts.tau) 
-                soft_update(self.actor_local, self.actor_target, self.opts.tau)
+                    if is_update_iteration:
+                        soft_update(self.critic_local, self.critic_target, self.opts.tau) 
+                        soft_update(self.actor_local, self.actor_target, self.opts.tau)
 
     def act(self, state, warmup):
         state = torch.from_numpy(state).float().to(self.opts.device)
 
+        noise = self.noise.sample()
+        noise *= self.eps
+
         if warmup:
-            action = self.noise.sample()
+            action = noise
         else:
             self.actor_local.eval()
             with torch.no_grad():
                 action = self.actor_local(state).cpu().data.numpy()
             self.actor_local.train()
 
-            action += self.noise.sample()
+            if np.random.random() < self.eps:
+                action += noise
         
         return np.clip(action, self.opts.minimum_action_value, self.opts.maximum_action_value)
 
@@ -103,6 +117,7 @@ class Agent():
         closs = float(critic_loss)
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(), 1)
         self.critic_optimizer.step()
 
         # Update actor
@@ -116,4 +131,4 @@ class Agent():
         self.actor_optimizer.step() 
 
         self.closs = closs
-        self.aloss = aloss                  
+        self.aloss = aloss   
